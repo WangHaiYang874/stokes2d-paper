@@ -9,6 +9,7 @@
 \usepackage{thmbox}
 \usepackage{geometry}
 \usepackage{graphicx}
+\usepackage[]{subcaption}
 
 
 \newcommand{\R}{\mathbb{R}}
@@ -229,7 +230,7 @@ This gives the decay rate of return to Poiseuille hypothesis, whice agrees with 
 % TODO
 
 
-\section{Description of the Numerical Method\label{sec:numericalmethod}}
+\section{Description of Numerical Methods\label{sec:numericalmethod}}
 In this section, we will first present Nystr\"om discretization of boundary integral equation (\ref{bie}), and then we briefly explain the discretization of the boundary. 
 
 \subsection{Boundary Integral equation}
@@ -260,24 +261,82 @@ where $\delta_m = 1$ excepts for $\delta_0 = 0$. And in the limiting case of $t^
   K_2(t^k_j, t^k_j) &= -\frac{w^k_j\kappa^k_j(d^k_j)^2}{2\pi|d^k_j|} + \delta_k(\cdots)
 \end{align}where $\kappa^k_j$ is the signed quadrature at the point $t^k_j$. 
 
-The RHS of (\ref{nystrom}) for any density $\omega$ is evaluated by biharmonic fmm \cite{FlatironinstituteFmm2d2022} . And this Nystr\"om discretization is regarded as an matrix equation, by seperaing the real part and imaginary part, and then solved iteratively using generalized minimum residual method GMRES \cite{saad_gmres_1986}. 
+The RHS of (\ref{nystrom}) for any density $\omega$ is evaluated by biharmonic fmm 
+\cite{FlatironinstituteFmm2d2022}. 
+And this Nystr\"om discretization is regarded as an matrix equation, 
+by separating the real part and imaginary part, 
+and then solved iteratively using 
+generalized minimum residual method GMRES \cite{saadGMRESGeneralizedMinimal1986}. 
 
-
+Evaluation of the layer potentials near boundary is done as in \cite{wuSolutionStokesFlow2020}. 
 
 \subsection{Geometry of the Boundary}
 
+The key to spectral convergence of GMRES is to have smooth boundary, 
+or for piecewise smooth boundary, one can use special treatment as in \cite{wuSolutionStokesFlow2020}
+to ensure the spectral convergence is preserved. Here for this paper, we uses tricks to ensure 
+the geometry is smooth. 
+We adopted the ideas from 
+\cite{epsteinSmoothedCornersScattered2016,baggeHighlyAccurateSpecial2021} 
+to smooth the corners of the boundary by convolution, and added superficial caps at the 
+inflows and outflows. [insert a figure here]. 
+
+The return to Poiseuille hypothesis means that putting the Poiseuille boundary condition on the 
+superficial cap, is effectively the same as putting the Poiseuille boundary condition on the 
+rectangular inlet/outlet. 
 
 
-
-
-
+And each boundary component is adaptively discretized into Gauss-Legendre panels, as described in
+\cite{wuSolutionStokesFlow2020}. 
 
 
 \section{Numerical Results and Discussion\label{sec:numericalresults}}
-
 \subsection{numerical evidence of return to poiseuille}
-\subsection{the error of combining local to global}
+
+
+The numerical evidence for return to Poiseuille phenomenon is 
+demonstrated on a straight pipe of width $1$ and length $8$. 
+On the left boundary, a random velocity profile is imposed, 
+and zero velocity condition is imposed on the rest of the curve. 
+
+Figure \ref{fig:rtp_cv} shows that the rate of returning 
+to the zero flow is agreed with the 
+predicted rate from Section \ref{sec:ret2poi} until the 14th digits of accuracy. 
+Figure \ref{fig:rtppipe} is a color
+plot where the color indicates the $\log_{10}$ of absolute value of the velocity, 
+pressure, and vorticity. We can clearly observe presence of the eigenfunction from
+each of the three color plots. Except for near the right end of the pipe, where 
+bizarre patterns started to appear near the boundaries. The author believes that
+this is due to the numerical error from the near panel evaluation scheme from 
+\cite{wuSolutionStokesFlow2020}, and this is the reason why Return to Poiseuille 
+phenomenon stops demonstrating as predicted at 14th digits of accuracy. 
+It is worth-noting that the near panel evaluation scheme is only applied in the 
+post-processing, which does not involve in the GMRES iterations. Therefore, despite
+that the we can only have 14th digits of accuracy for velocity, pressure, and vorticity,
+the complex density $\omega$ does not suffer from this numerical limitation. 
+
+
+\begin{figure}[h!]
+  \centering
+  \begin{subfigure}[b]{0.4\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{pic/rtp_cv.png}
+    \caption{Convergence plot for return to zero flow. }
+    \label{fig:rtp_cv}
+  \end{subfigure}
+  \begin{subfigure}[b]{0.5\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{pic/rtppipe.png}
+    \caption{Color plot of the velocity, vorticity, and pressure}
+    \label{fig:rtppipe}
+  \end{subfigure}
+  \caption{Return to Poiseuille flow in a straight pipe. }
+\end{figure}
+
+
 \subsection{a complicated network of pipes to show the power of this method}
+
+
 
 \section{Conclusions\label{sec:conclusions}}
 
