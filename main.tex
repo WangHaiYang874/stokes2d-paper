@@ -24,34 +24,57 @@
 
 \begin{abstract}
   In this paper, we exploit the \textit{return to Poiseuille} phenomenon: 
-  a flow would gradually developed into the Poiseuille flow along a straight channel. 
-  This allows us to quickly build a solver for the interior plane Stokes flow
-  with a domain that is union of \textit{standard pieces}. 
+  a Stokes flow would quickly developed into the Poiseuille flow along a straight channel. 
+  This allows us to quickly solve the interior plane Stokes equation 
+  on a domain that is union of \textit{standard pieces}. 
   Each standard piece's is a pipe with inlets/outlets 
-  being long enough straight channels, so that when two standard pieces are connecting, 
-  the velocity profile at where they connect would be close to Poiseuille flow velocity profile up to machine precision. 
-  \footnote{The length of straight channel is greater than 7 times of the width, as indicated by Figure \ref{fig:r2pnumerical} }
-  Therefore, we can solve the Stokes equation for each standard pieces with Poiseuille boundary condition at inlets/outlets, and then easily interface the local solutions of each standard pieces to build a solution for the global domain.  
+  being long enough straight channels, such that when two standard pieces are connecting, 
+  the velocity profile at where they connect would be close to Poiseuille flow velocity profile 
+  within machine precision. 
+  \footnote{The length of straight channel is greater than 7 times of the width, 
+  as indicated by Figure \ref{fig:r2pnumerical} }
+  Therefore, instead of solving stokes equation for the global domain, 
+  we can solve the Stokes equation 
+  for each standard pieces with Poiseuille 
+  boundary condition at inlets/outlets, 
+  and easily interface these local solutions 
+  to build a solution for the global domain. 
   
-  Once we pre-built the solvers for each standard piece, 
-  it is numerically stable to connect these standard pieces to form 
-  a large and complex pipe network. 
-  The connection algorithm is based on 
+  Once the Stokes equation with Poiseuille boundary conditions is pre-solved on each standard piece, 
+  the standard pieces can be connected to form a complex channel network. 
+  Interfacing the solutions of standard pieces
+  would instantly give us a high-order accurate solution of Stokes equation 
+  for the global domain of the channel network. 
+  The interfacing is based on 
   the physics constraints of  zero-net-flux and continuity of pressure. 
-  Connecting the local solvers would have time complexity of $O(n^2)$, 
-  where $n$ is the number of standard pieces. 
-  This is much faster than solving the global problem directly, which demands at least $O(N)$ time complexity. 
-  More specifically, for the numerical example in Figure [to be included], connecting the local solutions took only 0.3 seconds, and directly solving for the global domain would take 24 minutes. 
-  
+  These constraints can be written as a full rank linear system of rank $O(n)$,
+  where $n$ is the number of standard pieces. Thus, connecting the local solvers 
+  would have time complexity of $O(n^2)$. 
+  This is much faster than solving the global problem directly. 
+  For example, in Figure \ref{fig:connection-error}, interfacing the local solutions took only 0.3 seconds, while directly
+  solving on the global domain took 24 minutes. 
 \end{abstract}
+
+\begin{figure*}[t] 
+  \centering
+  \includegraphics[width=\textwidth]{pic/connection-error-rough.png}
+  \caption{Solutions of the Stokes equation in a complex channel geometry as a union of 22 standard pieces
+    with Dirichlet Boundary conditions, 
+    and the difference between connected local solution with the global solution. 
+    The first sub-figure is a color-plot of magnitude of velocity field inside the 
+    domain, with colorbar on its right. The black lines in the 
+    first sub-figure marks the boundary of each standard pieces. 
+    The other three sub-figures is color plot of absolute differences 
+    between the connected solutions and a global solution in terms of pressure, 
+    vorticity, and velocity field in the $log_{10}$ scale. Each standard pieces are solved
+    with required accuracy of $10^{-12}$ and the global domain is solved with 
+    required accuracy of $10^{-10}$.}
+  \label{fig:connection-error}
+
+\end{figure*}
 
 \section{Introduction}
 
-
-For plane Stokes flow, the biharmonic equation formulation are well known 
-and developed within theory of complex variable from the last century \cite{ladyzhenskayaMathematicalTheoryViscous1964}. 
-Various numerical schemes, such as boundary integral equation (BIE) and rational function approximation, 
-have been developed accordingly \cite{greengardIntegralEquationMethods1996,trefethenApproximationTheoryApproximation2019}. 
 
 The \textit{return to Poiseuille} phenomenon, or \textit{Saint-Venant's principle} in the theory of plane elasticity, 
 are well-established from the last century 
@@ -59,21 +82,27 @@ are well-established from the last century
 To be more specific, in a straight channel with laminar and incompressible incoming flow, the differences of Stokes flow and Poiseuille flow would decay exponentially fast toward the outlet. 
 Therefore it is a good numerical hypothesis to assume that the flow is Poiseuille in middle of a lone straight channel.
 
-% TODO : maybe move this sentence to the numerical experiment part. 
-% The BIM is coupled with the biharmonic Fast Multiple Method (FMM) 
-% to reduce space and time complexity for the matrix-vector product \cite{FlatironinstituteFmm2d2022}.
+For plane Stokes flow, the biharmonic equation formulation are well known 
+and developed within theory of complex variable from the last century \cite{ladyzhenskayaMathematicalTheoryViscous1964}. 
+Various numerical schemes, such as boundary integral equation (BIE) and rational function approximation, 
+have been developed accordingly \cite{greengardIntegralEquationMethods1996,trefethenApproximationTheoryApproximation2019}. 
 
-In this paper, we use the boundary integral method (BIM) from 
-\cite{greengardIntegralEquationMethods1996} to build solvers for multiple standard pieces 
-with Poiseuille boundary condition in at inlets/outlets. 
-Directly evaluating the BIM's solution near the boundary could be numerically unstable as the integral is nearly-singular.
+In this paper, we use the biharmonic BIE formulation for the plane Stokes equation from 
+\cite{greengardIntegralEquationMethods1996} to solve the Stokes equation on several standard pieces 
+with Poiseuille boundary condition at inlets/outlets. 
+The biharmonic BIE is coupled with a Fast Multiple Method (FMM) for 2D biharmonic equation
+to reduce the time and space complexity of solving the BIE. \cite{FlatironinstituteFmm2d2022} 
+
+Directly evaluating the BIE's solution near the boundary could be numerically unstable as the integral is nearly-singular.
 Thus, we have adopted the methods from 
 \cite{wuSolutionStokesFlow2020,helsingEvaluationLayerPotentials2008} 
-to for stable evaluation of layer potentials near the boundary. 
-Finally, connection of standard pieces is by simply solving a system of linear equations, 
-from the physics law of zero-net-flux and single-valued-ness of pressure. 
+to for accurate evaluation of layer potentials near the boundary. 
+
+Interfacing the local solutions of each standard pieces is by 
+simply solving a system of linear equations, 
+based on the constraints of zero-net-flux and continuity of pressure. 
 This linear equation depends merely on the flux and pressure at the
-point of connection of standard pipes, therefore can be solved instantly. 
+point of connection of standard pieces.  
 
 This paper is organized as follows. In Section \ref{mathprelim}, we define the Stokes boundary value problem, 
 the corresponding biharmonic boundary value problem, and then the integral equation of it. 
@@ -86,12 +115,15 @@ followed by conclusions in Section \ref{sec:conclusions}.
 
 \section{Mathematical Preliminaries\label{mathprelim}}
 
-In this section, we first state the Stokes equation, translate it into the biharmonic equation,
-and then derive the Boundary Integral equation. This whole derivation is nothing new from \cite{greengardIntegralEquationMethods1996}. 
-Then, we will present an analytic estimate for the exponential rate of 
-\textit{return to Poiseuille} \cite{gregoryTractionBoundaryValue1980}. 
+In this section, we briefly review the Stokes equation, its biharmonic form,
+and the biharmonic boundary integral equation. More detailed discussion can be found in \cite{greengardIntegralEquationMethods1996}. 
+Then, we will present an analytic estimate for the exponential decay rate of 
+\textit{return to Poiseuille} \cite{gregoryTractionBoundaryValue1980}, and explain how have 
+used it as a numerical hypothesis in this paper.
 
-\subsection{Stokes Boundary Value Problem}
+\subsection{Boundary Integral Equation}
+
+\paragraph{Stokes Boundary Value Problem}
 
 The plane linear Stokes equations are
 \begin{align}
@@ -106,67 +138,58 @@ $\nu$ is the viscosity,
 and $p$ is the pressure. 
 Another important physics quantity, vorticity, is defined as $\zeta  = u_y - v_x$. 
 
-
-We are interested in interior boundary value problem on a finite $(M+1)$-ply connected domain $D\subset \mathbb R^2$,
+We are interested in Dirichlet boundary value problem of Stokes equation on 
+a bounded $(M+1)$-ply connected domain $D\subset \mathbb R^2$,
 with boundary $\partial D =  \Gamma = \Gamma_0 \cup \Gamma_1 \cup \cdots \cup \Gamma_M$, 
-where $\Gamma_0$ is the exterior boundary, and $\Gamma_1,\cdots, \Gamma_M$ are the interior boundaries. We restrict our attention to 
-problems where the velocity is defined by given function $h_1,h_2$ on the boundary:
+where $\Gamma_0$ is the exterior boundary, and $\Gamma_1,\cdots, \Gamma_M$ are the interior boundaries. 
+On the boundary $\Gamma$, the velocity is defined by given functions $h_1,h_2$:
 \begin{align}
   u = h_2(t),\quad v = - h_1(t), \quad t\in \Gamma
   \label{bdr-velocity}
 \end{align}
 
-\subsection{The Biharmonic Potential}
 
-In this section, 
-we briefly review the biharmonic potential of plane Stokes flow, 
-the Goursat's representation of biharmonic function, 
-the Sherman-Lauricella representation, 
-and the BIE to be solved numerically
-\cite{ladyzhenskayaMathematicalTheoryViscous1964,greengardIntegralEquationMethods1996}. 
-
-\paragraph*{Biharmonic Stream Function.} $(\ref{continuity})$ implies the existence of the stream function $W(x,y)$ such that:
+\paragraph*{Biharmonic Equation.} $(\ref{continuity})$ implies the existence of the stream function $W(x,y)$ such that:
 \begin{align}
   \pdv{W}{x} = -v,\quad \pdv{W}{y} = u \label{stream-1}
 \end{align}
 
 Following (\ref{stokes},\ref{continuity}), it is easy to see that the stream function satisfies the biharmonic equation (\ref{biharmonic}),
-and the boundary velocity conditions ($\ref{bdr-velocity}$) can be understood as the boundary conditions for the biharmonic equation (\ref{bih-bv}):
+and the Dirichlet boundary condition of velocity ($\ref{bdr-velocity}$) can be understood as 
+the boundary conditions for the biharmonic equation (\ref{bih-bv}):
 \begin{align}
   &\Delta^2 W(x,y) = \Delta \zeta = 0, &(x,y)\in D \label{biharmonic}\\
   &\pdv{W}{x}(t) = h_1(t),\quad \pdv{W}{y}(t) = h_2(t), \quad &t\in \Gamma\label{bih-bv}
 \end{align}
-where $h_1,h_2$ are from equation (\ref{bdr-velocity}).
+% where $h_1,h_2$ are from equation (\ref{bdr-velocity}).
 
 \paragraph*{Goursat's Formula.} It has been long established that any plane biharmonic function $W(x,y)$ can be expressed by Goursat's formula 
 \begin{align}
   W(x,y) = \Re (\bar z \phi(z) + \chi (z)) \label{Goursat}
 \end{align}
-where $\phi, \chi$ are analytic functions of complex variable $z = x+yi$. 
-In the following, we will be identifying $(x,y) \in \mathbb{R}^2$ with $x + yi\in \mathbb{C}$. 
+where $\phi, \chi$ are referred to as the Goursat's functions, and are analytic functions of complex variable $z = x+yi$.
+In the following, we will be identifying $(x,y) \in \mathbb{R}^2$ with $x + yi$. 
 
-
-The Muskhelishvili's formula connects velocity of Stokes flow with the Goursat's formula \cite{muskhelishviliBasicProblemsMathematical1977}: 
+Velocity, pressure, and vorticity can be conveniently expressed with the Goursat's functions. 
+The Muskhelishvili's formula \eqref{muskhelishvili} 
+expresses velocity field and another formula \eqref{pressure-and-vorticity} gives the pressure and vorticity:
 \begin{align}
-    u(x,y) + iv(x,y) 
-    &= \phi(z) + z \overline{\phi'(z)} + \overline{\psi(z)}
-    \label{muskhelishvili}
-\end{align} where $\psi = \chi'$. This transforms the biharmonic boundary condition \eqref{bih-bv} into 
+  -v + ui &= \pdv{W}{x} + i\pdv{W}{y} 
+    = \phi(z) + z \overline{\phi'(z)} + \overline{\psi(z)}
+    \label{muskhelishvili}\\
+   \zeta + \frac{i}{\nu}p &= 4\phi'(z) \label{pressure-and-vorticity}
+\end{align} where $\psi = \chi'$ \cite{muskhelishviliBasicProblemsMathematical1977}. 
+
+The biharmonic boundary value problem (\ref{biharmonic},\ref{bih-bv}), 
+using the Muskhelishvili's formula (\ref{muskhelishvili}), can be rewritten as
 \begin{align}
   \phi(t) + t\overline{\phi'(t)} + \overline{\psi(t)} 
   = h(t), \quad
   t \in \Gamma
 \end{align} where $h(t) =  h_1(t) + ih_2(t)$,  and $t$ is understood as a complex variable. 
 
-For Stokes flow, there is another formula connecting pressure and vorticity with 
-the Goursat's functions
-\begin{align}
-  \zeta + \frac{i}{\nu}p = 4\phi'(z) \label{pressure-and-vorticity}
-\end{align}
-
-
 \paragraph*{Sherman-Lauricella Representation.} The boundary integral equation is an ansatz 
-based on of an extension of Sherman-Lauricella representation 
+based on of an extension of Sherman-Lauricella representation for Stokes equation 
 proposed in \cite{greengardIntegralEquationMethods1996}. 
 It is formulated as follows:
 \begin{align}
@@ -194,8 +217,8 @@ the classical formulae for the limiting values of Cauchy-type integral
 gives us the an integral equation for $\omega$ \cite{muschelisviliSingularIntegralEquations1972,greengardIntegralEquationMethods1996} :
 \begin{align}
   \omega(t) 
-  &+ \frac 1{\pi } \int_{\Gamma} \omega(\xi) d\ln \frac{\xi - t}{\overline{\xi - t}} - \frac 1{2\pi i} \int_\Gamma \overline{\omega(\xi)} d \frac{\xi - t}{\overline{\xi - t}} \label{bie} \\
-  &+ \sum_{k=1}^M \left( \frac{\bar b_k}{\overline{t- z_k}} +  2C_k \log |t-z_k| + \bar C_k \frac{t-z_k}{\overline{ t - z_k}} \right) \nonumber\\
+  &+ \frac 1{2\pi i} \int_{\Gamma} \omega(\xi) d\ln \frac{\xi - t}{\overline{\xi - t}} - \frac 1{2\pi i} \int_\Gamma \overline{\omega(\xi)} d \frac{\xi - t}{\overline{\xi - t}} \label{bie} \\
+  &+ \sum_{k=1}^M \left( \frac{\bar b_k}{\overline{t- z_k}} +  2C_k \log |t-z_k| + \overline{C_k} \frac{t-z_k}{\overline{ t - z_k}} \right) \nonumber\\
   &+ \frac{\overline b_0}{\bar t - \bar z^*} \nonumber \\
   &= h(t) \nonumber
 \end{align}
@@ -206,7 +229,7 @@ to the standard proof of invertibility for elasticity problems \cite{muskhelishv
 \subsection{Return to Poiseuille\label{sec:ret2poi}} 
 
 In this section, we will first show the analytic estimate for the \textit{return to Poiseuille} phenomenon,
-which is from the eigenfunction analysis on a semi-infinite strip from the theory of plane elasticity 
+which is based on eigenfunction analysis on a domain of a semi-infinite strip from the theory of plane elasticity 
 \cite{gregoryTractionBoundaryValue1980}. 
 Then, we explain how to apply the \textit{return to Poiseuille} hypothesis. 
 
@@ -246,7 +269,9 @@ This gives the decay rate of return to Poiseuille hypothesis,
 which agrees with our numerical experiment in Figure \ref{fig:r2pnumerical}. 
 % TODO
 
-\paragraph*{Application of Return to Poiseuille.} Given the analytic bound, it is easy to see
+\paragraph*{Application of Return to Poiseuille.}
+TODO
+Given the analytic bound, it is easy to see
 that in a straight channel with length greater than 8 times of the channel width, we can expect the 
 flow to be Poiseuille up to 14th digits accuracy. Therefore, it is appropriate to require the inlets/outlets of
 the standard pieces to be such straight channels, and then assign the Poiseuille boundary conditions on them. 
