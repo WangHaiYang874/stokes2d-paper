@@ -14,7 +14,7 @@
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\C}{\mathbb{C}}
 
-\author{Haiyang Wang, Nils Jan Fredrik Fryklund, Sam Potter, Leslie Greengard}
+\author{Haiyang Wang, Nils Jan Fredrik Fryklund, Samuel Potter, Leslie Greengard}
 \date{\today}
 \title{A Fast Solver for Stokes Flow in 2D: [this is a bad title]}
 
@@ -23,31 +23,30 @@
 \maketitle
 
 \begin{abstract}
-  In this paper, we exploited the \textit{return to Poiseuille} phenomenon: 
-  a flow would gradually developed into the Poiseuille flow along a straight channel.
-  This allows us to build a solver for the interior plane Stokes flow
+  In this paper, we exploit the \textit{return to Poiseuille} phenomenon: 
+  a flow would gradually developed into the Poiseuille flow along a straight channel. 
+  This allows us to quickly build a solver for the interior plane Stokes flow
   with a domain that is union of \textit{standard pieces}. 
   Each standard piece's is a pipe with inlets/outlets 
-  being long enough straight channels.
+  being long enough straight channels, so that when two standard pieces are connecting, 
+  the velocity profile at where they connect would be close to Poiseuille flow velocity profile up to machine precision. 
   \footnote{The length of straight channel is greater than 7 times of the width, as indicated by Figure \ref{fig:r2pnumerical} }
-
-  This enforces that the point of connection of two standard pieces is in middle of a straight channel,
-  therefore the velocity profile should be close to Poiseuille velocity profile within machine precision. 
-  Therefore, we can solve for each standard pieces with Poiseuille boundary conditions at the inlets/outlets.
-  And as they have the same Poiseuille velocity profile at inlets/outlets, we can connect them to form a 
-  solver for the global domain. 
-
+  Therefore, we can solve the Stokes equation for each standard pieces with Poiseuille boundary condition at inlets/outlets, and then easily interface the local solutions of each standard pieces to build a solution for the global domain.  
+  
   Once we pre-built the solvers for each standard piece, 
   it is numerically stable to connect these standard pieces to form 
-  a arbitrarily large and complex pipe network. 
+  a large and complex pipe network. 
   The connection algorithm is based on 
-  the physics constraints of  zero-net-flux and singular-valued-ness of pressure. 
-  Connecting the local solvers would take at most $O(n^2)$ time, 
+  the physics constraints of  zero-net-flux and continuity of pressure. 
+  Connecting the local solvers would have time complexity of $O(n^2)$, 
   where $n$ is the number of standard pieces. 
-  Much faster than solving the global problem directly. [should elaborate more here?]
+  This is much faster than solving the global problem directly, which demands at least $O(N)$ time complexity. 
+  More specifically, for the numerical example in Figure [to be included], connecting the local solutions took only 0.3 seconds, and directly solving for the global domain would take 24 minutes. 
+  
 \end{abstract}
 
 \section{Introduction}
+
 
 For plane Stokes flow, the biharmonic equation formulation are well known 
 and developed within theory of complex variable from the last century \cite{ladyzhenskayaMathematicalTheoryViscous1964}. 
@@ -87,7 +86,7 @@ followed by conclusions in Section \ref{sec:conclusions}.
 
 \section{Mathematical Preliminaries\label{mathprelim}}
 
-In this section, we first state the Stokes equation, translate it into the biharmonic equation, https://www.overleaf.com/project/6321335ef3ca053d2ac9f3f3
+In this section, we first state the Stokes equation, translate it into the biharmonic equation,
 and then derive the Boundary Integral equation. This whole derivation is nothing new from \cite{greengardIntegralEquationMethods1996}. 
 Then, we will present an analytic estimate for the exponential rate of 
 \textit{return to Poiseuille} \cite{gregoryTractionBoundaryValue1980}. 
