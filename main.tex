@@ -16,7 +16,7 @@
 
 \author{Haiyang Wang, Nils Jan Fredrik Fryklund, Samuel Potter, Leslie Greengard}
 \date{\today}
-\title{A Fast Solver for Stokes Flow in 2D: [this is a bad title]}
+\title{A Fast Solver for Stokes Flow in 2D: [we need a better title]}
 
 \begin{document}
 
@@ -49,7 +49,7 @@
   the physics constraints of  zero-net-flux and continuity of pressure. 
   These constraints can be written as a full rank linear system of rank $O(n)$,
   where $n$ is the number of standard pieces. Thus, connecting the local solvers 
-  would have time complexity of $O(n^2)$. 
+  would have time complexity of $O(n^3)$. 
   This is much faster than solving the global problem directly. 
   For example, in Figure \ref{fig:connection-error}, interfacing the local solutions took only 0.3 seconds, while directly
   solving on the global domain took 24 minutes. 
@@ -60,12 +60,12 @@
   \includegraphics[width=\textwidth]{pic/connection-error-rough.png}
   \caption{Solutions of the Stokes equation in a complex channel geometry as a union of 22 standard pieces
     with Dirichlet Boundary conditions, 
-    and the difference between connected local solution with the global solution. 
+    and the numerical error of the connected solution compare to the global solution. 
     The first sub-figure is a color-plot of magnitude of velocity field inside the 
     domain, with colorbar on its right. The black lines in the 
-    first sub-figure marks the boundary of each standard pieces. 
+    first sub-figure marks the boundary of each standard piece. 
     The other three sub-figures is color plot of absolute differences 
-    between the connected solutions and a global solution in terms of pressure, 
+    between the connected solution and a global solution in terms of pressure, 
     vorticity, and velocity field in the $log_{10}$ scale. Each standard pieces are solved
     with required accuracy of $10^{-12}$ and the global domain is solved with 
     required accuracy of $10^{-10}$.}
@@ -96,22 +96,27 @@ to reduce the time and space complexity of solving the BIE. \cite{Flatironinstit
 Directly evaluating the BIE's solution near the boundary could be numerically unstable as the integral is nearly-singular.
 Thus, we have adopted the methods from 
 \cite{wuSolutionStokesFlow2020,helsingEvaluationLayerPotentials2008} 
-to for accurate evaluation of layer potentials near the boundary. 
+for accurate evaluation of layer potentials near the boundary. 
 
 Interfacing the local solutions of each standard pieces is by 
 simply solving a system of linear equations, 
 based on the constraints of zero-net-flux and continuity of pressure. 
-This linear equation depends merely on the flux and pressure at the
-point of connection of standard pieces.  
+This linear equation depends on the flux and pressure at the
+point of connection of standard pieces. And thus, interfacing can be done instantly and accurately. 
 
 This paper is organized as follows. In Section \ref{mathprelim}, we define the Stokes boundary value problem, 
 the corresponding biharmonic boundary value problem, and then the integral equation of it. 
-We also mention the analytic evidence for the \textit{return to Poiseuille} hypothesis. 
+We also mention the analytic evidence and predicted exponential convergence rate for the \textit{return to Poiseuille} hypothesis in a long straight channel. 
 In Section \ref{sec:numericalmethod}, we presents the Nystr\"om discretization
-of the integral equation. 
+of the integral equation, which is solved iteratively by Generalized Minimal Residual Method (GMRES). It also contains a description of the interface constraints of zero-net-flux and continuity of pressure, and points to the reference of
+other techniques we have adopted in this paper: 
+accurate evaluation of nearly singular integral, 
+GMRES with removed nullspace, 
+the O'Neil scheme to smooth corners of the geometry,
+and the biharmonic FMM. 
 The numerical experiments of connecting standard pieces and numerical evidence for \textit{return to Poiseuille}
 hypothesis are contained in Section \ref{sec:numericalresults}, 
-followed by conclusions in Section \ref{sec:conclusions}.
+followed by conclusions and possible future research ideas  in Section \ref{sec:conclusions}.
 
 \section{Mathematical Preliminaries\label{mathprelim}}
 
@@ -123,7 +128,7 @@ used it as a numerical hypothesis in this paper.
 
 \subsection{Boundary Integral Equation}
 
-\paragraph{Stokes Boundary Value Problem}
+\paragraph{Stokes Boundary Value Problem.}
 
 The plane linear Stokes equations are
 \begin{align}
@@ -138,7 +143,7 @@ $\nu$ is the viscosity,
 and $p$ is the pressure. 
 Another important physics quantity, vorticity, is defined as $\zeta  = u_y - v_x$. 
 
-We are interested in Dirichlet boundary value problem of Stokes equation on 
+We are interested in Dirichlet boundary value problem (BVP) of Stokes equation on 
 a bounded $(M+1)$-ply connected domain $D\subset \mathbb R^2$,
 with boundary $\partial D =  \Gamma = \Gamma_0 \cup \Gamma_1 \cup \cdots \cup \Gamma_M$, 
 where $\Gamma_0$ is the exterior boundary, and $\Gamma_1,\cdots, \Gamma_M$ are the interior boundaries. 
@@ -147,7 +152,9 @@ On the boundary $\Gamma$, the velocity is defined by given functions $h_1,h_2$:
   u = h_2(t),\quad v = - h_1(t), \quad t\in \Gamma
   \label{bdr-velocity}
 \end{align}
-
+For the specific purpose of this paper, 
+the boundary velocity profile is zero everywhere except at the inlets/outlets
+of channels, where a Poiseuille velocity profile is specified. 
 
 \paragraph*{Biharmonic Equation.} $(\ref{continuity})$ implies the existence of the stream function $W(x,y)$ such that:
 \begin{align}
@@ -155,8 +162,8 @@ On the boundary $\Gamma$, the velocity is defined by given functions $h_1,h_2$:
 \end{align}
 
 Following (\ref{stokes},\ref{continuity}), it is easy to see that the stream function satisfies the biharmonic equation (\ref{biharmonic}),
-and the Dirichlet boundary condition of velocity ($\ref{bdr-velocity}$) can be understood as 
-the boundary conditions for the biharmonic equation (\ref{bih-bv}):
+and the Dirichlet BVP ($\ref{bdr-velocity}$) can be understood as 
+the following biharmonic BVP:
 \begin{align}
   &\Delta^2 W(x,y) = \Delta \zeta = 0, &(x,y)\in D \label{biharmonic}\\
   &\pdv{W}{x}(t) = h_1(t),\quad \pdv{W}{y}(t) = h_2(t), \quad &t\in \Gamma\label{bih-bv}
@@ -167,8 +174,8 @@ the boundary conditions for the biharmonic equation (\ref{bih-bv}):
 \begin{align}
   W(x,y) = \Re (\bar z \phi(z) + \chi (z)) \label{Goursat}
 \end{align}
-where $\phi, \chi$ are referred to as the Goursat's functions, and are analytic functions of complex variable $z = x+yi$.
-In the following, we will be identifying $(x,y) \in \mathbb{R}^2$ with $x + yi$. 
+where the Goursat's functions $\phi, \chi$ are analytic functions of complex variable $z = x+yi$.
+In the following, we will be identifying $(x,y) \in \mathbb{R}^2$ with $x + yi \in \mathbb{C}$. 
 
 Velocity, pressure, and vorticity can be conveniently expressed with the Goursat's functions. 
 The Muskhelishvili's formula \eqref{muskhelishvili} 
@@ -185,26 +192,27 @@ using the Muskhelishvili's formula (\ref{muskhelishvili}), can be rewritten as
 \begin{align}
   \phi(t) + t\overline{\phi'(t)} + \overline{\psi(t)} 
   = h(t), \quad
-  t \in \Gamma
+  t \in \Gamma \label{musk-bvp}
 \end{align} where $h(t) =  h_1(t) + ih_2(t)$,  and $t$ is understood as a complex variable. 
 
-\paragraph*{Sherman-Lauricella Representation.} The boundary integral equation is an ansatz 
-based on of an extension of Sherman-Lauricella representation for Stokes equation 
-proposed in \cite{greengardIntegralEquationMethods1996}. 
+\paragraph*{Sherman-Lauricella Representation.} 
+The Sherman-Lauricella Representation proposes a specific form of the Goursat's functions. And one can use this representation as an ansatz for BIE of the Biharmonic BVP \eqref{musk-bvp}
+\cite{greengardIntegralEquationMethods1996}. 
 It is formulated as follows:
 \begin{align}
   \phi(z) &=
     \frac {1}{2\pi i} \int_\Gamma \frac{\omega(\xi)}{\xi - z} d\xi  
-    + \sum_{k=1}^M C_k \log (z-z_k)
+    + \sum_{k=1}^M C_k \log (z-z_k) \label{sl-phi}
     \\
   \psi(z) &=
     \frac {1}{2\pi i} \int_\Gamma \frac{\overline{\omega(\xi)}d\xi +  \omega(\xi)\overline{d\xi}}{\xi - z}  
-    - \frac {1}{2\pi i} \int_\Gamma \frac{\overline{\xi} \omega(\xi)}{(\xi - z)^2} d\xi  
+    - \frac {1}{2\pi i} \int_\Gamma \frac{\overline{\xi} \omega(\xi)}{(\xi - z)^2} d\xi  \label{sl-psi}
     \\
     & \quad + \sum _{k=1}^M 
     \left( \frac{b_k}{z-z_k} + \overline C_k \log (z-z_k) -  C_k \frac{\overline z_k}{z-z_k} \right) \nonumber 
 \end{align}
-where $\omega$ is an unknown complex density on $\Gamma$ to be solved for, 
+where $\omega$ is an unknown complex density on $\Gamma$ to be solved 
+for with the given $h$, 
 $z_k$ are arbitrarily prescribed point inside the component curves $\Gamma_k$, 
 and $C_k, b_k$ are constants defined by 
 \begin{align}
@@ -212,9 +220,10 @@ and $C_k, b_k$ are constants defined by
 \end{align}
 
 \paragraph*{Boundary Integral Equation.} 
-Letting a point $z$ in the interior of $D$ approach to a point on the boundary $t\in \Gamma$, 
+Plugging the Sherman-Lauricella representation (\ref{sl-phi},\ref{sl-psi}) into equation (\ref{musk-bvp}), 
+and letting a point $z$ in the interior of $D$ approach to a point on the boundary $t\in \Gamma$ in \eqref{musk-bvp}, 
 the classical formulae for the limiting values of Cauchy-type integral 
-gives us the an integral equation for $\omega$ \cite{muschelisviliSingularIntegralEquations1972,greengardIntegralEquationMethods1996} :
+gives us the following integral equation for $\omega$ \cite{muschelisviliSingularIntegralEquations1972,greengardIntegralEquationMethods1996}:
 \begin{align}
   \omega(t) 
   &+ \frac 1{2\pi i} \int_{\Gamma} \omega(\xi) d\ln \frac{\xi - t}{\overline{\xi - t}} - \frac 1{2\pi i} \int_\Gamma \overline{\omega(\xi)} d \frac{\xi - t}{\overline{\xi - t}} \label{bie} \\
@@ -222,9 +231,9 @@ gives us the an integral equation for $\omega$ \cite{muschelisviliSingularIntegr
   &+ \frac{\overline b_0}{\bar t - \bar z^*} \nonumber \\
   &= h(t) \nonumber
 \end{align}
-the extra term $\frac{\overline b_0}{\bar t - \bar z^*}$ vanishes when the zero-net-flux condition $\Re \int_\Gamma \bar h(t) dt = 0$ is satisfied. 
+the extra term $\frac{\overline b_0}{\bar t - \bar z^*}$ vanishes when the zero-net-flux condition $\Re \int_\Gamma \bar h(t) dt = 0$ is satisfied, hence will be omitted in the Nystr\"om discretization of \eqref{bie} . 
 The invertibility of this integral equation is similar 
-to the standard proof of invertibility for elasticity problems \cite{muskhelishviliBasicProblemsMathematical1977}, hence omitted.
+to the standard proof of invertibility for elasticity problems \cite{muskhelishviliBasicProblemsMathematical1977}, and are omitted.
 
 \subsection{Return to Poiseuille\label{sec:ret2poi}} 
 
@@ -243,23 +252,23 @@ On the domain of a semi-infinite pipe $D_L = \{(x,y)\mid x \ge 0, |y| \le L\}$, 
 where $\Gamma_L^2,\Gamma_L^3$ are walls with the non-slippery boundary conditions, 
 and $\Gamma_L^1$ is the inlet with boundary condition of an
 incoming laminar incompressible flow. 
-Return to Poiseuille means that regardless of the boundary conditions on $\Gamma_L^1$,
-the flow's profile at $x = l$ will converge Poiseuille flow as $l$ approaches to infinity. 
+\textit{Return to Poiseuille} means that regardless of the boundary velocity profile on $\Gamma_L^1$,
+the flow's profile at $x = l$ will converge Poiseuille flow as $l\to\infty$. 
 
-Without lost of generality, assuming there is zero net flux across $\Gamma_L^1$,
-return to Poiseuille is equivalent to return to zero flow. The equation for this BVP
+Without lost of generality, assume there is zero net flux across $\Gamma_L^1$. 
+Then, \textit{return to Poiseuille} is equivalent to return to zero flow, i.e. the flows velocity profile at $x=l$ would converge to zero at an exponential decay rate as $l\to\infty$. The equation for this BVP
 is the following:
 \begin{align}
   &\pdv{W(x,y)}{y}  = W(x,y) = 0,  &(x,y) &\in \Gamma_L^2 \cup \Gamma_L^3 \\
   &\pdv{W(0,y)}{x}  = f(y),\ \pdv{W(0,y)}{y} = g(y), &(0,y) &\in \Gamma_L^1  \label{eq:velocity-condition-at-inlet}
 \end{align}
-where $f,g$ satisfy $f(\pm L) = g(\pm L) = \int_{-L}^L g(y)dy = 0$. 
+where $f,g$ satisfy $f(\pm L) = g(\pm L) = \int_{-L}^L g(y)dy = 0$ so that the boundary condition is continuous and the net-flux is zero. 
 
 This biharmonic BVP is identical to the "self-equilibrated" traction BVP in the theory of elasticity studied in
 \cite{gregoryTractionBoundaryValue1980,horganDECAYESTIMATESBIHARMONIC1989,coRecentDevelopmentsConcerning1983}. 
 When $f''',g'''$ exist and are of bounded variation, 
 this problem has a unique solution spanned by the Papkovich-Fadle eigenfunctions \cite{gregoryTractionBoundaryValue1980}.
-The first eigenfunction is dominated by $e^{-xk/2L}$, where 
+The absolute value of first eigenfunction is dominated by $e^{-xk/2L}$, where 
 \begin{align*}
   k \simeq 4.2 
 \end{align*}
@@ -269,31 +278,26 @@ This gives the decay rate of return to Poiseuille hypothesis,
 which agrees with our numerical experiment in Figure \ref{fig:r2pnumerical}. 
 % TODO
 
-\paragraph*{Application of Return to Poiseuille.}
-TODO
-Given the analytic bound, it is easy to see
+\paragraph{Return to Poiseuille as a Numerical Hypothesis}
+Given the analytic estimate, it is easy to see
 that in a straight channel with length greater than 8 times of the channel width, we can expect the 
-flow to be Poiseuille up to 14th digits accuracy. Therefore, it is appropriate to require the inlets/outlets of
-the standard pieces to be such straight channels, and then assign the Poiseuille boundary conditions on them. 
+flow to be Poiseuille with 14th digits of accuracy at the outlets regardless of the velocity profile on the inlets. Therefore, it is appropriate to require the inlets/outlets of
+the standard pieces to be such straight channels, 
+and then assign the Poiseuille boundary conditions on the inlets/outlets. 
 
-The straight channels outlets would have two corners of right angle, making the geometry non-smooth. Such piecewise 
-smooth geometry can be handled as in \cite{wuSolutionStokesFlow2020} with panel refinement near the corners. 
-Here, we choose a different approach to avoid handling corners by adding superficial caps to the outlets. 
-[this paragraph needs more elaboration and some figures perhaps]. 
-
+When two standard pieces are connected and their solutions are interfaced, 
+as in Figure \ref{fig:connection-error}, at the point of the connection the flow profile is indeed Poiseuille with high order accuracy. It is particularly worth-noting that no significant numerical error can be observed at the point of connection in the $\log_{10}$ scale. 
 
 \section{Description of Numerical Methods\label{sec:numericalmethod}}
-In this section, we will first present Nystr\"om discretization of boundary integral equation (\ref{bie}), 
-and then we briefly explain the discretization of the boundary, near boundary evaluation of layer potential, 
-and the system of linear equations for pipe connections.  
+In this section, we will first present Nystr\"om discretization of boundary integral equation (\ref{bie}). Then we will describe the interface conditions. Lastly, we briefly explain the discretization and smoothing of the boundary, accurate near boundary evaluation of layer potential, GMRES with nullspace removed. 
 
-\subsection{Boundary Integral equation}
+\subsection{Boundary Integral Equation}
 
 The boundary curve $\Gamma_k$ is given by the parametrization $\Gamma_k = \{ t^k(a): a\in \left[A_k,A_{k+1}\right]\}$, 
 and discretized into $N_k$ points $t^k_i = t^k(a^k_i)$. 
 Associate to each point $t^k_j$ are the unknown complex density $\omega^k_j$, 
 the derivative $d^k_j = t^{k\prime}(a^k_j)$, 
-and the quadrature weight $w^k_j$. In total, we have $N= \sum_{k=0}^M N_k$ points. Nystr\"om discretization of (\ref{bie}) is
+and the quadrature weight $w^k_j$. In total, we have $N= \sum_{k=0}^M N_k$ points. The Nystr\"om discretization of BIE (\ref{bie}) is:
 \begin{align}
   \omega_j^k 
   + \sum_{m=0}^{M}\sum_{n=1}^{N_k} K_1(t^k_j,t^m_n) \omega^k_j 
@@ -302,28 +306,37 @@ and the quadrature weight $w^k_j$. In total, we have $N= \sum_{k=0}^M N_k$ point
 \end{align} where $h^k_j = h(t^k_j)$ and the kernels $K_1, K_2$ are given by 
 \begin{align}
   K_1(t^k_j, t^m_n) 
-  &= \frac{1}{\pi} \Im (\frac{d^m_n}{t^m_n-t^k_j})w^m_n + K_1^s(t^k_j,t^m_n)\\
+  &= \frac{w^m_n}{\pi} \Im (\frac{d^m_n}{t^m_n-t^k_j}) + K_1^s(t^k_j,t^m_n)\\
   K_2(t^k_j, t^m_n) 
-  &= \frac{1}{\pi} \frac{\Im((t^m_n-t^k_j)\overline{d^m_n})}{(\overline{t^m_n - t^k_j})^2} w^m_n + K_2^s(t^k_j,t^m_n)
+  &= \frac{w^m_n}{\pi} \frac{\Im((t^m_n-t^k_j)\overline{d^m_n})}{(\overline{t^m_n - t^k_j)^2}}  + K_2^s(t^k_j,t^m_n)
 \end{align}
-with $K_1^s, K_2^s$ being: 
+with $K_1^s, K_2^s$ representing the singular sources are: 
 \begin{align}
   K_1^s(t^k_j,t^m_n) &= \delta_m w^m_n \left(\frac{i\overline{d^m_n}}{\overline{t^k_j - z_m}}
   + 2 \log |t^k_j - z_m| \right)\\
-  K_2^s(t^k_j,t^m_n) &= \delta_{m}w^m_n \left(- \frac{id^m_n}{\overline{t^k_j - z_m}} + \frac{t^k_j-z_m}{\overline{t^k_j - z_m}}\right) 
+  K_2^s(t^k_j,t^m_n) &= \delta_{m}w^m_n \frac{t^k_j-z_m-id^m_n}{\overline{t^k_j - z_m}}
 \end{align}
-where $\delta_m = 1$ excepts for $\delta_0 = 0$. In the limiting case of $t^k_j = t^m_n$, the corresponding value can be seen as the limiting value:
+where $\delta_m = 1$ excepts for $\delta_0 = 0$. In the limiting case of $t^k_j = t^m_n$, the value of $K_1,K_2$ are:
 \begin{align}
   K_1(t^k_j, t^k_j) &= \frac{w^k_j \kappa^k_j|d^k_j|}{2\pi} + K_1^s(t^k_j,t^k_j) \\
   K_2(t^k_j, t^k_j) &= -\frac{w^k_j\kappa^k_j(d^k_j)^2}{2\pi|d^k_j|} + K_2^s(t^k_j,t^k_j)
-\end{align}where $\kappa^k_j$ is the signed quadrature at the point $t^k_j$. 
+\end{align}where $\kappa^k_j$ is the signed curvature at the point $t^k_j$. 
 
-The left hand side (LHS) of (\ref{nystrom}) for any density $\omega$ is evaluated by a biharmonic fmm 
-\cite{FlatironinstituteFmm2d2022}. 
-And this Nystr\"om discretization is regarded as an matrix equation, 
-by separating the real part and imaginary part, 
-and then solved iteratively using 
-generalized minimum residual method GMRES \cite{saadGMRESGeneralizedMinimal1986}. 
+The Nystr\"om discretizetion \eqref{nystrom} can be written more compactly as the following matrix equation:
+\begin{align}
+    \omega + K_1\omega + K_2\overline{\omega} = h \label{nys-mateq}
+\end{align}
+This equation is separated into real and imaginary parts, and iteratively solved by the GMRES \cite{saadGMRESGeneralizedMinimal1986}. 
+For each GMRES iteration, evaluating the left hand side of \eqref{nys-mateq} 
+is required, and evaluating by a dense matrix-vector product would require space and time complexity of $O(N^2)$. Too expensive when $N$ is large. Therefore, we used a biharmonic fmm provided by the Flatiron Institute instead, which would only have time and space complexity of $O(N)$ \cite{FlatironinstituteFmm2d2022}. 
+
+The matrix equation \eqref{nys-mateq} 
+obeys the zero-net-flux condition, 
+therefore only has solution when $\Re \int_\Gamma \overline{h(t)} dt = 0$. 
+This also means that \eqref{nys-mateq} has rank deficiency, which might cause GMRES converging slowly. 
+This issue can be avoided by adding a double layer term 
+
+
 
 Evaluation of the layer potentials near boundary is done as in \cite{wuSolutionStokesFlow2020}. 
 
