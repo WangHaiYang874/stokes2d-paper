@@ -14,6 +14,8 @@
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\C}{\mathbb{C}}
 
+\renewcommand{\thefootnote}{\fnsymbol{footnote}}
+
 \author{Haiyang Wang, Nils Jan Fredrik Fryklund, Samuel Potter, Leslie Greengard}
 \date{\today}
 \title{A Fast Solver for Stokes Flow in 2D: [we need a better title]}
@@ -24,13 +26,13 @@
 
 \begin{abstract}
   In this paper, we exploit the \textit{return to Poiseuille} phenomenon: 
-  a Stokes flow would quickly developed into the Poiseuille flow along a straight channel. 
+  a Stokes flow would quickly develop to the Poiseuille flow along a straight channel. 
   This allows us to quickly solve the interior plane Stokes equation 
-  on a domain that is union of \textit{standard pieces}. 
-  Each standard piece's is a pipe with inlets/outlets 
-  being long enough straight channels, such that when two standard pieces are connecting, 
-  the velocity profile at where they connect would be close to Poiseuille flow velocity profile 
-  within machine precision. 
+  on a domain that is a union of \textit{standard pieces}. 
+  Each standard piece is a pipe with inlets/outlets 
+  being long enough straight channels, such that when two standard pieces are connecting,
+  where they connect is in middle of a long straight channel, hence the flow
+  at the connection would be close to Poiseuille flow up within machine precision. 
   \footnote{The length of straight channel is greater than 7 times of the width, 
   as indicated by Figure \ref{fig:r2pnumerical} }
   Therefore, instead of solving stokes equation for the global domain, 
@@ -41,16 +43,10 @@
   to build a solution for the global domain. 
   
   Once the Stokes equation with Poiseuille boundary conditions is pre-solved on each standard piece, 
-  the standard pieces can be connected to form a complex channel network. 
+  the standard pieces can be connected to form a complex domain of channel network. 
   Interfacing the solutions of standard pieces
-  would instantly give us a high-order accurate solution of Stokes equation 
-  for the global domain of the channel network. 
-  The interfacing is based on 
-  the physics constraints of  zero-net-flux and continuity of pressure. 
-  These constraints can be written as a full rank linear system of rank $O(n)$,
-  where $n$ is the number of standard pieces. Thus, connecting the local solvers 
-  would have time complexity of $O(n^3)$. 
-  This is much faster than solving the global problem directly. 
+  would instantly give a high-order accurate solution of Stokes equation 
+  for the global domain. 
   For example, in Figure \ref{fig:connection-error}, interfacing the local solutions took only 0.3 seconds, while directly
   solving on the global domain took 24 minutes. 
 \end{abstract}
@@ -59,13 +55,12 @@
   \centering
   \includegraphics[width=\textwidth]{pic/connection-error-rough.png}
   \caption{Solutions of the Stokes equation in a complex channel geometry as a union of 22 standard pieces
-    with Dirichlet Boundary conditions, 
-    and the numerical error of the connected solution compare to the global solution. 
+    with Poiseuille velocity profile of unit flux given at the left inlet and right outlet, and non-slippery boundary conditions elsewhere, 
     The first sub-figure is a color-plot of magnitude of velocity field inside the 
     domain, with colorbar on its right. The black lines in the 
     first sub-figure marks the boundary of each standard piece. 
     The other three sub-figures is color plot of absolute differences 
-    between the connected solution and a global solution in terms of pressure, 
+    between the connected solution and the global solution in pressure, 
     vorticity, and velocity field in the $log_{10}$ scale. Each standard pieces are solved
     with required accuracy of $10^{-12}$ and the global domain is solved with 
     required accuracy of $10^{-10}$.}
@@ -98,49 +93,62 @@ Thus, we have adopted the methods from
 \cite{wuSolutionStokesFlow2020,helsingEvaluationLayerPotentials2008} 
 for accurate evaluation of layer potentials near the boundary. 
 
-Interfacing the local solutions of each standard pieces is by 
-simply solving a system of linear equations, 
-based on the constraints of zero-net-flux and continuity of pressure. 
-This linear equation depends on the flux and pressure at the
-point of connection of standard pieces. And thus, interfacing can be done instantly and accurately. 
+The main idea of this paper is to apply \textit{Return to Poiseuille} as a 
+high order accurate numerical hypothesis. It allows us to pre-solve a few standard pieces
+which have inlets and outlets that are long enough straight channels, 
+with Poiseuille boundary condition at inlets/outlets. 
+Once the standard pieces are pre-solved, 
+the \textit{Return to Poiseuille} hypothesis allows us to interface solutions of stokes flow on 
+each standard pieces to get a solution for any complex channel networks that is a disjoint union of 
+the standard pieces. 
+Interfacing is by solving a system of linear equations, 
+based on the constraints of flux and continuity of pressure. 
+This system of linear equations depends on the flux and pressure only at where the standard pieces are connected, 
+and can be solved instantly and accurately. 
 
 This paper is organized as follows. In Section \ref{mathprelim}, we define the Stokes boundary value problem, 
 the corresponding biharmonic boundary value problem, and then the integral equation of it. 
-We also mention the analytic evidence and predicted exponential convergence rate for the \textit{return to Poiseuille} hypothesis in a long straight channel. 
+We also mention the analytic evidence and predicted exponential convergence rate for the 
+\textit{return to Poiseuille} hypothesis in a long straight channel. 
+Then, we explain how to interfacing the local solutions of standard pieces by an simple example. 
 In Section \ref{sec:numericalmethod}, we presents the Nystr\"om discretization
-of the integral equation, which is solved iteratively by Generalized Minimal Residual Method (GMRES). It also contains a description of the interface constraints of zero-net-flux and continuity of pressure, and points to the reference of
-other techniques we have adopted in this paper: 
-accurate evaluation of nearly singular integral, 
-GMRES with removed nullspace, 
-the O'Neil scheme to smooth corners of the geometry,
-and the biharmonic FMM. 
+of the integral equation, which is solved iteratively by 
+Generalized Minimal Residual Method (GMRES). 
+% At the end of this section, we also points to the 
+% reference of other techniques we have adopted in this paper: 
+% accurate evaluation of nearly singular integral, 
+% GMRES with removed nullspace, 
+% the smoothing of corners of the geometry,
+% and the biharmonic FMM. 
 The numerical experiments of connecting standard pieces and numerical evidence for \textit{return to Poiseuille}
 hypothesis are contained in Section \ref{sec:numericalresults}, 
-followed by conclusions and possible future research ideas  in Section \ref{sec:conclusions}.
+followed by conclusions and possible further work in Section \ref{sec:conclusions}.
+
 
 \section{Mathematical Preliminaries\label{mathprelim}}
 
-In this section, we briefly review the Stokes equation, its biharmonic form,
-and the biharmonic boundary integral equation. More detailed discussion can be found in \cite{greengardIntegralEquationMethods1996}. 
+In this section, we briefly review the plane Stokes equation, its biharmonic form,
+and the biharmonic boundary integral equation. More detailed discussion can be found in 
+\cite{greengardIntegralEquationMethods1996}. 
 Then, we will present an analytic estimate for the exponential decay rate of 
-\textit{return to Poiseuille} \cite{gregoryTractionBoundaryValue1980}, and explain how have 
-used it as a numerical hypothesis in this paper.
+\textit{return to Poiseuille} hypothesis \cite{gregoryTractionBoundaryValue1980}, 
+and explain how we have applied it as a numerical hypothesis: 
+how to build local solutions for each standard pieces
+and how to interface the local solutions. 
 
 \subsection{Boundary Integral Equation}
 
 \paragraph{Stokes Boundary Value Problem.}
 
-The plane linear Stokes equations are
+Recall that the plane Stokes equations are:
 \begin{align}
   \nu \Delta u = \frac 1 \rho \pdv{p}{x},\quad &\nu \Delta v = \frac 1\rho \pdv{p}{y} 
   \label{stokes} \\
   \pdv{u}{x} + \pdv{v}{y} &= 0
   \label{continuity}
 \end{align}
-where $u,v$ are components of velocity, 
-$\rho$ is the density, 
-$\nu$ is the viscosity, 
-and $p$ is the pressure. 
+where $u,v$ are components of velocity, $p$ is the pressure, 
+$\rho$ and $\nu$ are the density and viscosity, which are constants.  
 Another important physics quantity, vorticity, is defined as $\zeta  = u_y - v_x$. 
 
 We are interested in Dirichlet boundary value problem (BVP) of Stokes equation on 
@@ -198,7 +206,7 @@ using the Muskhelishvili's formula (\ref{muskhelishvili}), can be rewritten as
 \paragraph*{Sherman-Lauricella Representation.} 
 The Sherman-Lauricella Representation proposes a specific form of the Goursat's functions. And one can use this representation as an ansatz for BIE of the Biharmonic BVP \eqref{musk-bvp}
 \cite{greengardIntegralEquationMethods1996}. 
-It is formulated as follows:
+The Sherman-Lauricella representation is formulated as follows:
 \begin{align}
   \phi(z) &=
     \frac {1}{2\pi i} \int_\Gamma \frac{\omega(\xi)}{\xi - z} d\xi  
@@ -228,19 +236,21 @@ gives us the following integral equation for $\omega$ \cite{muschelisviliSingula
   \omega(t) 
   &+ \frac 1{2\pi i} \int_{\Gamma} \omega(\xi) d\ln \frac{\xi - t}{\overline{\xi - t}} - \frac 1{2\pi i} \int_\Gamma \overline{\omega(\xi)} d \frac{\xi - t}{\overline{\xi - t}} \label{bie} \\
   &+ \sum_{k=1}^M \left( \frac{\bar b_k}{\overline{t- z_k}} +  2C_k \log |t-z_k| + \overline{C_k} \frac{t-z_k}{\overline{ t - z_k}} \right) \nonumber\\
-  &+ \frac{\overline b_0}{\bar t - \bar z^*} \nonumber \\
+  &+ \frac{\overline b_0}{\overline{ t - z^*}} \nonumber \\
   &= h(t) \nonumber
 \end{align}
-the extra term $\frac{\overline b_0}{\bar t - \bar z^*}$ vanishes when the zero-net-flux condition $\Re \int_\Gamma \bar h(t) dt = 0$ is satisfied, hence will be omitted in the Nystr\"om discretization of \eqref{bie} . 
+the extra term $\frac{\overline b_0}{\overline{t - z^*}}$ vanishes when the zero-net-flux condition $\Re \int_\Gamma \bar h(t) dt = 0$ is satisfied, hence will be omitted in the Nystr\"om discretization of \eqref{bie} . 
 The invertibility of this integral equation is similar 
 to the standard proof of invertibility for elasticity problems \cite{muskhelishviliBasicProblemsMathematical1977}, and are omitted.
 
 \subsection{Return to Poiseuille\label{sec:ret2poi}} 
 
 In this section, we will first show the analytic estimate for the \textit{return to Poiseuille} phenomenon,
-which is based on eigenfunction analysis on a domain of a semi-infinite strip from the theory of plane elasticity 
+which is based on eigenfunction analysis on a domain of a semi-infinite straight channel from the theory of plane elasticity 
 \cite{gregoryTractionBoundaryValue1980}. 
-Then, we explain how to apply the \textit{return to Poiseuille} hypothesis. 
+Then, we explain how to apply the \textit{return to Poiseuille} hypothesis, 
+and how to interface the solutions on standard pieces. 
+
 
 \paragraph*{Analytic Estimate for Return to Poiseuille. }
 
@@ -256,8 +266,10 @@ incoming laminar incompressible flow.
 the flow's profile at $x = l$ will converge Poiseuille flow as $l\to\infty$. 
 
 Without lost of generality, assume there is zero net flux across $\Gamma_L^1$. 
-Then, \textit{return to Poiseuille} is equivalent to return to zero flow, i.e. the flows velocity profile at $x=l$ would converge to zero at an exponential decay rate as $l\to\infty$. The equation for this BVP
-is the following:
+Then, \textit{return to Poiseuille} is equivalent to return to the zero flow, 
+i.e. the flows velocity profile at the vertical cross-section $x=l$ would converge to 
+zero at an exponential decay rate as $l\to\infty$. 
+The equation for this BVP is the following:
 \begin{align}
   &\pdv{W(x,y)}{y}  = W(x,y) = 0,  &(x,y) &\in \Gamma_L^2 \cup \Gamma_L^3 \\
   &\pdv{W(0,y)}{x}  = f(y),\ \pdv{W(0,y)}{y} = g(y), &(0,y) &\in \Gamma_L^1  \label{eq:velocity-condition-at-inlet}
@@ -269,27 +281,30 @@ This biharmonic BVP is identical to the "self-equilibrated" traction BVP in the 
 When $f''',g'''$ exist and are of bounded variation, 
 this problem has a unique solution spanned by the Papkovich-Fadle eigenfunctions \cite{gregoryTractionBoundaryValue1980}.
 The absolute value of first eigenfunction is dominated by $e^{-xk/2L}$, where 
-\begin{align*}
-  k \simeq 4.2 
-\end{align*}
-is the smallest positive real parts of the roots 
-of the transcendental equation $\sin^2\lambda - \lambda^2=0$. 
+\begin{equation*}
+  k \simeq 4.2  \footnote{This is the smallest positive real parts of the roots 
+  of the transcendental equation $\sin^2\lambda - \lambda^2=0$.}
+\end{equation*}
 This gives the decay rate of return to Poiseuille hypothesis, 
 which agrees with our numerical experiment in Figure \ref{fig:r2pnumerical}. 
-% TODO
 
 \paragraph{Return to Poiseuille as a Numerical Hypothesis}
 Given the analytic estimate, it is easy to see
 that in a straight channel with length greater than 8 times of the channel width, we can expect the 
 flow to be Poiseuille with 14th digits of accuracy at the outlets regardless of the velocity profile on the inlets. Therefore, it is appropriate to require the inlets/outlets of
 the standard pieces to be such straight channels, 
-and then assign the Poiseuille boundary conditions on the inlets/outlets. 
+and assign the Poiseuille boundary conditions on the inlets/outlets. 
 
-When two standard pieces are connected and their solutions are interfaced, 
-as in Figure \ref{fig:connection-error}, at the point of the connection the flow profile is indeed Poiseuille with high order accuracy. It is particularly worth-noting that no significant numerical error can be observed at the point of connection in the $\log_{10}$ scale. 
+Figure \ref{fig:connection-error} is a numerical example 
+where the interfaced solution is compared with a global solution, 
+and high order accuracy is achieved in both pressure, velocity, and vorticity. 
+It is worth-noting that no significant numerical error is 
+observed at where the standard pieces are connected. 
 
 \section{Description of Numerical Methods\label{sec:numericalmethod}}
-In this section, we will first present Nystr\"om discretization of boundary integral equation (\ref{bie}). Then we will describe the interface conditions. Lastly, we briefly explain the discretization and smoothing of the boundary, accurate near boundary evaluation of layer potential, GMRES with nullspace removed. 
+In this section, 
+we will first present Nystr\"om discretization of boundary integral equation (\ref{bie}). 
+And we will briefly explain the smoothing of the geometry and accurate near boundary evaluation of layer potential. 
 
 \subsection{Boundary Integral Equation}
 
@@ -353,6 +368,37 @@ inlets and outlets. [insert a figure here]. The geometry is adaptively discretiz
 
 
 \section{Numerical Results and Discussion\label{sec:numericalresults}}
+\begin{figure}[h!] 
+  \centering
+  \begin{subfigure}[b]{0.4\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{pic/rtp_cv.png}
+    \caption{Numerical Convergence rate of return to Poiseuille flow in a straight channel}
+    \label{fig:rtp_cv}
+  \end{subfigure}
+  \begin{subfigure}[b]{0.4\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{pic/rtppipe.png}
+    \caption{$\log_{10}$ of the absolute value of the velocity, vorticity, and pressure within the straight channel.}
+    \label{fig:rtppipe}
+  \end{subfigure}
+  \caption{Numerical exponential rate for return to Poiseuille flow. 
+  This is solution of Stokes BVP on a straight channel of length 10 and width 1, 
+  with non-slippery boundary condition on the top and bottom walls, 
+  an incoming flow (smooth and randomly generated) of zero-net-flux on the left inlet, 
+  and no outgoing flow on the right outlet. 
+  (a) The semilogy of magnitude of velocity, pressure, and vorticity 
+  along each vertical cross section along the channel. 
+  % This agrees with the predicted converge rate in Section \ref{sec:ret2poi} all the way to 14th digits of accuracy. 
+  (b) The color plot of the magnitude of velocity, pressure, and vorticity in $\log_{10}$ scale in the straight channel. 
+  }
+  \label{fig:r2pnumerical}
+\end{figure}
+
+
+
+
+
 \subsection{Numerical evidence of return to poiseuille}
 
 
@@ -371,23 +417,6 @@ plot where the color indicates the $\log_{10}$ of absolute value of the velocity
 pressure, and vorticity. 
 
 
-\begin{figure}[h!] 
-  \centering
-  \begin{subfigure}[b]{0.4\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{pic/rtp_cv.png}
-    \caption{Return to zero flow}
-    \label{fig:rtp_cv}
-  \end{subfigure}
-  \begin{subfigure}[b]{0.4\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{pic/rtppipe.png}
-    \caption{Color plot of $\log_{10}$ of the absolute value of the velocity, vorticity, and pressure}
-    \label{fig:rtppipe}
-  \end{subfigure}
-  \caption{Return to Poiseuille flow in a straight pipe. }
-  \label{fig:r2pnumerical}
-\end{figure}
 
 
 \subsection{a complicated network of pipes to show the power of this method}
@@ -395,6 +424,14 @@ pressure, and vorticity.
 
 
 \section{Conclusions\label{sec:conclusions}}
+
+
+\section{Acknowledgements\label{sec:acknowledgements}}
+
+We thank Charles S. Peskin and Manas Rachh for many useful discussions pretaining to this work.
+We thank Manas Rachh and Libin Lu for providing support for the Flatiron Institute's FMM2D library \cite{FlatironinstituteFmm2d2022}.
+
+
 
 \subsection{summarize what I've done}
 \subsection{outlook. What other work might be followed?}
