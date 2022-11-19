@@ -31,10 +31,11 @@
   on a domain that is a union of \textit{standard pieces}. 
   Each standard piece is a pipe with inlets/outlets 
   being long enough straight channels, such that when two standard pieces are connecting,
-  where they connect is in middle of a long straight channel, hence the flow
+  where they connect is in middle of a long
+  straight channel\footnote{
+  The length of straight channel is greater than 7 times of the width, 
+  as indicated by Figure \ref{fig:r2pnumerical}}, hence the flow 
   at the connection would be close to Poiseuille flow up within machine precision. 
-  \footnote{The length of straight channel is greater than 7 times of the width, 
-  as indicated by Figure \ref{fig:r2pnumerical} }
   Therefore, instead of solving stokes equation for the global domain, 
   we can solve the Stokes equation 
   for each standard pieces with Poiseuille 
