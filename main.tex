@@ -11,6 +11,8 @@
 \usepackage{graphicx}
 \usepackage[]{subcaption}
 \usepackage[inline]{enumitem}
+\usepackage[sorting=ynt,style=ieee]{biblatex}
+\addbibresource{references.bib}
 
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\C}{\mathbb{C}}
@@ -712,7 +714,7 @@ It provides a way to instantly get high order accurate solutions for
 the special geometries considered in this paper. 
 
 One nature extension of this work is to make a 3D version, 
-where more interesting standard pieces can be included.
+for which more interesting standard pieces can be considered.
 The major weakness of this work is that the current scheme relies heavily 
 on the return to Poiseuille hypothesis, therefore it is cannot
 include particles in the flow: 
@@ -721,7 +723,7 @@ boundary conditions of a Poiseuille flow.
 In this regard, a more useful extension of this work is to be able to add particles in the fluid simulations. 
 This interface idea can be extended to not only interface pre-solved Poiseuille flows, 
 but also a much larger class of pre-solved characteristic flows. 
-And the influence of particles can be coupled with fast direct solvers.
+And the influence of particles can be coupled with fast direct solvers \cite{martinssonFastDirectSolvers2019}.
 Therefore enabling fast and accurate simulations of Stokes flow with particles in it. 
 % The latter part of last paragraph is what I remembered from a conversation with professor Greengard, 
 % and I am sure I don't understand how this would really work out. 
@@ -732,6 +734,5 @@ Therefore enabling fast and accurate simulations of Stokes flow with particles i
 We thank Manas Rachh and Charles Peskin for many useful discussions pretaining to this work. 
 We thank Manas Rachh and Libin Lu for providing support for the Flatiron Institute's FMM2D library \cite{FlatironinstituteFmm2d2022}.
 
-\bibliographystyle{plain}
-\bibliography{references}
+\printbibliography
 \end{document}
